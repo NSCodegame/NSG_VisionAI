@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 16 with pgvector and TimescaleDB extensions
+  postgres:
+    image: timescale/timescaledb-ha:pg16
+    container_name: nsg-visionai-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nsg_visionai}
+      POSTGRES_USER: ${POSTGRES_USER:-nsg_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+      POSTGRES_INITDB_ARGS: "-c shared_preload_libraries=timescaledb"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nsg_admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nsg-network
+    restart: unless-stopped
+
+  # Redis 7 (Celery broker and caching)
+  redis:
+    image: redis:7-alpine
+    container_name: nsg-visionai-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-change_me_in_production} --maxmemory 2gb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nsg-network
+    restart: unless-stopped
+
+  # MinIO (S3-compatible object storage)
+  minio:
+    image: minio/minio:latest
+    container_name: nsg-visionai-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-nsg_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change_me_in_production}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - nsg-network
+    restart: unless-stopped
+
+  # Flower (Celery monitoring dashboard)
+  flower:
+    image: mher/flower:latest
+    container_name: nsg-visionai-flower
+    command: celery --broker=redis://:${REDIS_PASSWORD:-change_me_in_production}@redis:6379/0 flower --port=5555
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    environment:
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-change_me_in_production}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-change_me_in_production}@redis:6379/0
+      FLOWER_BASIC_AUTH: ${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-change_me_in_production}
+    depends_on:
+      - redis
+    networks:
+      - nsg-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  nsg-network:
+    driver: bridge

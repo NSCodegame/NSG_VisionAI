@@ -1,0 +1,91 @@
+# ============================================================================
+# NSG VisionAI — .gitignore
+# ============================================================================
+
+# --- Secrets & credentials (NEVER commit these) ---
+.env
+keys/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+.eggs/
+*.egg-info/
+dist/
+build/
+*.egg
+.installed.cfg
+
+# --- Testing & coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+coverage.xml
+*.cover
+nosetests.xml
+test-results/
+
+# --- ML model weights (large binary files) ---
+models/*.pt
+models/*.pth
+models/*.onnx
+models/*.bin
+models/*.h5
+yolov8*.pt
+
+# --- Node / Frontend ---
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# --- IDE & OS ---
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Database ---
+*.sqlite
+*.db
+
+# --- Video / media ---
+*.mp4
+*.avi
+*.mkv
+*.mov
+streams/
+
+# --- Alembic ---
+# Keep migrations but ignore compiled cache
+alembic/versions/__pycache__/
+
+# --- Kiro IDE ---
+.kiro/
+
+# --- MinIO / object storage data ---
+data/
+minio_data/

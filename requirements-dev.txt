@@ -1,0 +1,26 @@
+# Development Dependencies
+-r requirements.txt
+
+# Code Quality
+black>=24.1.0
+flake8>=7.0.0
+mypy>=1.8.0
+isort>=5.13.0
+pylint>=3.0.0
+
+# Security
+bandit>=1.7.6
+safety>=3.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+hypothesis>=6.96.0
+faker>=22.0.0
+freezegun>=1.4.0
+
+# Development Tools
+ipython>=8.20.0
+ipdb>=0.13.13

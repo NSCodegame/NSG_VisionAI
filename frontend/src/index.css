@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/* ── NSG Tactical Design Tokens ─────────────────────────────────────────── */
+:root {
+  --color-bg: #05070a;
+  --color-surface: rgba(15, 23, 42, 0.8);
+  --color-primary: #00f2ff;
+  --color-secondary: #7dd3fc;
+  --color-accent: #3b82f6;
+  --color-danger: #f43f5e;
+  --color-warning: #f59e0b;
+  --color-success: #10b981;
+  --color-border: rgba(59, 130, 246, 0.2);
+}
+
+/* ── Tailwind v4 theme extension ─────────────────────────────────────────── */
+@theme {
+  --color-tactical-bg: #05070a;
+  --color-tactical-surface: rgba(15, 23, 42, 0.8);
+  --color-tactical-cyan: #00f2ff;
+  --color-tactical-blue: #3b82f6;
+  --color-tactical-danger: #f43f5e;
+  --color-tactical-warning: #f59e0b;
+  --color-tactical-success: #10b981;
+
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+  --font-family-mono: 'JetBrains Mono', monospace;
+
+  --shadow-glow-cyan: 0 0 15px rgba(0, 242, 255, 0.3);
+  --shadow-glow-danger: 0 0 15px rgba(244, 63, 94, 0.3);
+}
+
+/* ── Base styles ─────────────────────────────────────────────────────────── */
+body {
+  background-color: #05070a;
+  color: rgb(241 245 249);
+  overflow: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+    linear-gradient(rgba(5, 7, 10, 0.8), rgba(5, 7, 10, 0.8));
+}
+
+/* ── Component utilities ─────────────────────────────────────────────────── */
+.glass-panel {
+  background-color: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  box-shadow: 0 10px 15px -3px rgba(30, 58, 138, 0.1);
+}
+
+.tactical-border {
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  position: relative;
+}
+
+.tactical-border::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid #00f2ff;
+  border-left: 2px solid #00f2ff;
+}
+
+.tactical-border::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-bottom: 2px solid #00f2ff;
+  border-right: 2px solid #00f2ff;
+}
+
+.glow-text {
+  text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+}
+
+.alert-pulse {
+  animation: pulse-danger 2s infinite;
+}
+
+@keyframes pulse-danger {
+  0%   { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.4); }
+  70%  { box-shadow: 0 0 0 10px rgba(244, 63, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: rgb(15 23 42);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(59, 130, 246, 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(59, 130, 246, 0.4);
+}

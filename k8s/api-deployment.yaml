@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nsg-api
+  labels:
+    app: nsg-visionai
+    component: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nsg-visionai
+      component: api
+  template:
+    metadata:
+      labels:
+        app: nsg-visionai
+        component: api
+    spec:
+      containers:
+      - name: api
+        image: nsg-registry.local/visionai/api:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - secretRef:
+            name: nsg-secrets
+        - configMapRef:
+            name: nsg-config
+        resources:
+          limits:
+            cpu: "1000m"
+            memory: "2Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nsg-api-service
+spec:
+  selector:
+    app: nsg-visionai
+    component: api
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+  type: LoadBalancer

@@ -1,0 +1,17 @@
+# Normalize line endings to LF in the repo, checkout as-is on Windows
+* text=auto eol=lf
+
+# Force binary for these types (no line ending conversion)
+*.pt binary
+*.pth binary
+*.onnx binary
+*.bin binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mp4 binary
+*.avi binary
+*.zip binary
+*.gz binary

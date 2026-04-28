@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # Hardened PostgreSQL with performance tuning
+  postgres:
+    image: timescale/timescaledb-ha:pg16
+    container_name: nsg-visionai-postgres-prod
+    environment:
+      POSTGRES_DB: nsg_visionai
+      POSTGRES_USER: nsg_admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-c shared_preload_libraries=timescaledb -c max_connections=200 -c shared_buffers=1GB"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          memory: 1G
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    networks:
+      - secure-back-tier
+    restart: always
+
+  # Redis with persistent storage
+  redis:
+    image: redis:7-alpine
+    container_name: nsg-visionai-redis-prod
+    command: >
+      redis-server 
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 4gb 
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - secure-back-tier
+    restart: always
+
+  # Secured MinIO
+  minio:
+    image: minio/minio:latest
+    container_name: nsg-visionai-minio-prod
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: nsg_admin
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+    volumes:
+      - minio_prod_data:/data
+    networks:
+      - secure-back-tier
+    restart: always
+
+  # API Layer
+  api:
+    build: 
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://nsg_admin:${DB_PASSWORD}@postgres:5432/nsg_visionai
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+    networks:
+      - secure-front-tier
+      - secure-back-tier
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+  minio_prod_data:
+
+networks:
+  secure-front-tier:
+    driver: bridge
+  secure-back-tier:
+    internal: true
+    driver: bridge

@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nsg-ml-worker
+  labels:
+    app: nsg-visionai
+    component: ml-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nsg-visionai
+      component: ml-worker
+  template:
+    metadata:
+      labels:
+        app: nsg-visionai
+        component: ml-worker
+    spec:
+      containers:
+      - name: ml-worker
+        image: nsg-registry.local/visionai/ml-worker:latest
+        command: ["celery", "-A", "app.core.celery_app", "worker",
+                  "--loglevel=info", "--concurrency=2",
+                  "-Q", "detection_queue,face_queue,tracking_queue,anomaly_queue,alert_queue"]
+        envFrom:
+        - secretRef:
+            name: nsg-secrets
+        - configMapRef:
+            name: nsg-config
+        resources:
+          limits:
+            cpu: "4000m"
+            memory: "8Gi"
+            nvidia.com/gpu: "1"
+          requests:
+            cpu: "2000m"
+            memory: "4Gi"
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - name: model-storage
+          mountPath: /app/models
+          readOnly: true
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: nsg-model-pvc
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nsg-archival-worker
+  labels:
+    app: nsg-visionai
+    component: archival-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nsg-visionai
+      component: archival-worker
+  template:
+    metadata:
+      labels:
+        app: nsg-visionai
+        component: archival-worker
+    spec:
+      containers:
+      - name: archival-worker
+        image: nsg-registry.local/visionai/api:latest
+        command: ["celery", "-A", "app.core.celery_app", "worker",
+                  "--loglevel=info", "--concurrency=4",
+                  "-Q", "archival_queue"]
+        envFrom:
+        - secretRef:
+            name: nsg-secrets
+        - configMapRef:
+            name: nsg-config
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"

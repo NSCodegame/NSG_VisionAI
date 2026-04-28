@@ -1,0 +1,23 @@
+Generic single-database configuration with async support for NSG VisionAI Platform.
+
+This Alembic environment is configured to work with:
+- Async SQLAlchemy (asyncpg driver)
+- PostgreSQL 16
+- TimescaleDB extension
+- pgvector extension
+
+Usage:
+  # Generate a new migration
+  alembic revision --autogenerate -m "description"
+
+  # Apply migrations
+  alembic upgrade head
+
+  # Rollback one migration
+  alembic downgrade -1
+
+  # Show current revision
+  alembic current
+
+  # Show migration history
+  alembic history
