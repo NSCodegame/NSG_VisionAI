@@ -41,12 +41,12 @@ nosetests.xml
 test-results/
 
 # --- ML model weights (large binary files) ---
+# yolov8n.pt (6MB) and yolov8s.pt (21MB) are included intentionally
 models/*.pt
 models/*.pth
 models/*.onnx
 models/*.bin
 models/*.h5
-yolov8*.pt
 
 # --- Node / Frontend ---
 frontend/node_modules/
