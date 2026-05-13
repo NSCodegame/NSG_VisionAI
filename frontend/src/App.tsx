@@ -13,6 +13,7 @@ import { twMerge } from "tailwind-merge";
 // Pages
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { HomePage } from "./pages/HomePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AlertsPage } from "./pages/AlertsPage";
 import { ForensicsPage } from "./pages/ForensicsPage";
@@ -175,10 +176,17 @@ export default function App() {
   const { activeTab, setActiveTab } = useUIStore();
   const [isAuthenticated, setIsAuthenticated] = useState(!!token);
   const [showRegister, setShowRegister] = useState(false);
+  const [showHome, setShowHome] = useState(!token);
 
   useEffect(() => {
     setIsAuthenticated(!!token);
+    if (token) setShowHome(false);
   }, [token]);
+
+  // Homepage — shown before login
+  if (!isAuthenticated && showHome) {
+    return <HomePage onEnter={() => setShowHome(false)} />;
+  }
 
   // Go directly to login — no homepage
   if (!isAuthenticated) {

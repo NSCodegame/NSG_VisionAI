@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 /* ── NSG Tactical Design Tokens ─────────────────────────────────────────── */
 :root {
@@ -34,7 +34,7 @@
 body {
   background-color: #05070a;
   color: rgb(241 245 249);
-  overflow: hidden;
+  overflow: hidden; /* overridden by .page-scroll */
   font-family: 'Inter', system-ui, sans-serif;
   background-image:
     radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
@@ -106,4 +106,65 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background-color: rgba(59, 130, 246, 0.4);
+}
+
+
+/* ── Homepage scroll override ────────────────────────────────────────────── */
+.page-scroll {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: 100vh;
+}
+
+/* ── Homepage animations ─────────────────────────────────────────────────── */
+@keyframes hp-fade-up {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes hp-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes hp-scan {
+  0%   { transform: translateY(-100%); opacity: 0.6; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+@keyframes hp-pulse-ring {
+  0%   { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+@keyframes hp-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+@keyframes hp-bounce-y {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(8px); }
+}
+@keyframes hp-glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(0,242,255,0.3); }
+  50%       { box-shadow: 0 0 40px rgba(0,242,255,0.6); }
+}
+@keyframes hp-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+@keyframes hp-radar {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.hp-fade-up   { animation: hp-fade-up 0.8s cubic-bezier(0.22,1,0.36,1) both; }
+.hp-fade-in   { animation: hp-fade-in 0.6s ease both; }
+.hp-blink     { animation: hp-blink 1s ease-in-out infinite; }
+.hp-bounce    { animation: hp-bounce-y 1.8s ease-in-out infinite; }
+.hp-glow      { animation: hp-glow-pulse 2.5s ease-in-out infinite; }
+.hp-float     { animation: hp-float 4s ease-in-out infinite; }
+.hp-radar     { animation: hp-radar 4s linear infinite; }
+
+.hp-card-hover {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.hp-card-hover:hover {
+  transform: translateY(-5px);
 }
