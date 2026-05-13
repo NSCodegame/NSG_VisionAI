@@ -51,17 +51,9 @@ function Section({ children, className = "", id = "", style = {} }: {
   children: React.ReactNode; className?: string; id?: string; style?: React.CSSProperties;
 }) {
   return (
-    <motion.section
-      id={id}
-      className={className}
-      style={style}
-      initial={{ opacity: 0, y: 36 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.05 }}
-      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-    >
+    <section id={id} className={className} style={style}>
       {children}
-    </motion.section>
+    </section>
   );
 }
 
@@ -715,4 +707,5 @@ export function HomePage({ onEnter }: HomePageProps) {
     </div>
   );
 }
+
 
