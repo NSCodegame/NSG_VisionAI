@@ -133,9 +133,9 @@ const INFRA = [
 /* ─── MAIN COMPONENT ─────────────────────────────────────────────────────── */
 export function HomePage({ onEnter }: HomePageProps) {
   const heroRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
-  const heroY    = useTransform(scrollYProgress, [0, 1], ["0%", "25%"]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
+  const { scrollY } = useScroll();
+  const heroY = useTransform(scrollY, [0, 600], ["0%", "20%"]);
+  const heroOpacity = useTransform(scrollY, [0, 500], [1, 0]);
 
   /* typing effect */
   const [typed, setTyped] = useState("");
@@ -152,7 +152,7 @@ export function HomePage({ onEnter }: HomePageProps) {
       {/* ══════════════════════════════════════════════════════════════════
           1. HERO
       ══════════════════════════════════════════════════════════════════ */}
-      <div ref={heroRef} style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
+      <div ref={heroRef} style={{ position: "relative", minHeight: "100vh" }}>
 
         {/* parallax bg */}
         <motion.div style={{ y: heroY, position: "absolute", inset: 0, zIndex: 0 }}>
@@ -262,15 +262,23 @@ export function HomePage({ onEnter }: HomePageProps) {
             </motion.a>
           </motion.div>
 
-          {/* scroll cue */}
+          {/* scroll cue — click to jump to metrics */}
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
             style={{ marginTop: 72, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 10, fontFamily: "monospace", letterSpacing: "0.15em", color: "#334155" }}>SCROLL TO EXPLORE</span>
-            <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <div style={{ width: 1, height: 32, background: "linear-gradient(to bottom,#334155,transparent)" }} />
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(0,242,255,0.5)" }} />
-            </motion.div>
+            <button
+              onClick={() => document.getElementById("metrics")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              style={{ background: "none", border: "none", cursor: "pointer", display: "flex",
+                flexDirection: "column", alignItems: "center", gap: 8, padding: "8px 16px" }}>
+              <span style={{ fontSize: 10, fontFamily: "monospace", letterSpacing: "0.15em", color: "#475569" }}>
+                SCROLL TO EXPLORE
+              </span>
+              <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <div style={{ width: 1, height: 32, background: "linear-gradient(to bottom,rgba(0,242,255,0.4),transparent)" }} />
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(0,242,255,0.6)",
+                  boxShadow: "0 0 8px rgba(0,242,255,0.4)" }} />
+              </motion.div>
+            </button>
           </motion.div>
         </motion.div>
       </div>
