@@ -12,7 +12,7 @@ export type Role = 'SUPER_ADMIN' | 'COMMANDER' | 'OPERATOR' | 'ANALYST';
 
 export type FeedStatus = 'ACTIVE' | 'OFFLINE' | 'ALERT' | 'MAINTENANCE';
 
-export type FeedType = 'FIXED_CAMERA' | 'DRONE' | 'BODY_CAM' | 'LEGACY_CCTV';
+export type FeedType = 'FIXED_CAMERA' | 'DRONE' | 'BODY_CAM' | 'LEGACY_CCTV' | 'IP_CAMERA';
 
 export type ZoneType = 'PERIMETER' | 'RESTRICTED' | 'PUBLIC' | 'INNER_CORDON';
 

@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { Shield, Activity, Users, Map, Settings, Bell, Monitor, LayoutGrid, FileText, BarChart2, Lock, Search } from "lucide-react";
+import { Shield, Activity, Users, Map, Settings, Bell, Monitor, LayoutGrid, FileText, BarChart2, Lock, Search, Camera } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -21,6 +21,7 @@ import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { AdminPage } from "./pages/AdminPage";
 import { FeedsPage } from "./pages/FeedsPage";
 import { WebcamPage } from "./pages/WebcamPage";
+import { IPCameraPage } from "./pages/IPCameraPage";
 
 // Components (existing)
 import { WatchlistManager } from "./components/WatchlistManager";
@@ -48,6 +49,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "DASHBOARD", icon: Monitor },
   { id: "feeds", label: "FEEDS", icon: LayoutGrid },
+  { id: "ip-camera", label: "IP CAMERAS", icon: Camera },
   { id: "webcam", label: "WEBCAM AI", icon: Activity },
   { id: "map", label: "TACTICAL MAP", icon: Map },
   { id: "alerts", label: "ALERTS", icon: Bell },
@@ -230,6 +232,8 @@ export default function App() {
         return <AnalyticsPage />;
       case "feeds":
         return <FeedsPage />;
+      case "ip-camera":
+        return <IPCameraPage />;
       case "webcam":
         return <WebcamPage />;
       case "admin":
