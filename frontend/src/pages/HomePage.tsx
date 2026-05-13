@@ -46,19 +46,19 @@ function Counter({ to, suffix = "", duration = 2 }: { to: number; suffix?: strin
   return <span ref={ref}>{val.toLocaleString()}{suffix}</span>;
 }
 
-/* ─── Section wrapper with scroll reveal ────────────────────────────────── */
-function Section({ children, className = "", id = "" }: {
-  children: React.ReactNode; className?: string; id?: string;
+/* ─── Section wrapper — uses whileInView directly (no useInView hook needed) ─ */
+function Section({ children, className = "", id = "", style = {} }: {
+  children: React.ReactNode; className?: string; id?: string; style?: React.CSSProperties;
 }) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
   return (
     <motion.section
-      id={id} ref={ref}
-      variants={fadeUp}
-      initial="hidden"
-      animate={inView ? "show" : "hidden"}
+      id={id}
       className={className}
+      style={style}
+      initial={{ opacity: 0, y: 36 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.05 }}
+      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
     >
       {children}
     </motion.section>
@@ -715,3 +715,4 @@ export function HomePage({ onEnter }: HomePageProps) {
     </div>
   );
 }
+
