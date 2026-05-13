@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import { FileText, Plus, Download, RefreshCw, CheckCircle, Clock, XCircle } from "lucide-react";
 import { reportsService, type Report, type CreateReportRequest } from "../services/reportsService";
+import { generateReportPdf } from "../utils/reportPdf";
 
 const REPORT_TYPES = [
   "INCIDENT_REPORT",
@@ -90,12 +91,12 @@ export function ReportsPage() {
     }
   };
 
-  const handleDownload = async (reportId: string) => {
+  const handleDownload = (reportId: string) => {
     try {
-      const { download_url } = await reportsService.getDownloadUrl(reportId);
-      window.open(download_url, "_blank");
+      generateReportPdf(reportId);
     } catch (err) {
-      console.error("Download failed:", err);
+      console.error("PDF generation failed:", err);
+      alert("Failed to generate PDF. Please try again.");
     }
   };
 
