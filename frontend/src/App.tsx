@@ -183,9 +183,13 @@ export default function App() {
     if (token) setShowHome(false);
   }, [token]);
 
-  // Landing page — shown before login
+  // Landing page — shown before login (needs full window scroll, no h-screen trap)
   if (!isAuthenticated && showHome) {
-    return <HomePage onEnter={() => setShowHome(false)} />;
+    return (
+      <div style={{ background: "#05070a" }}>
+        <HomePage onEnter={() => setShowHome(false)} />
+      </div>
+    );
   }
 
   if (!isAuthenticated) {

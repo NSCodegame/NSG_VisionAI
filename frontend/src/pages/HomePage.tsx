@@ -167,6 +167,7 @@ export function HomePage({ onEnter }: HomePageProps) {
   const [visible, setVisible] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
   const statsRef = useRef<HTMLDivElement>(null);
+  const featuresRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 100);
@@ -176,7 +177,7 @@ export function HomePage({ onEnter }: HomePageProps) {
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) setStatsVisible(true); },
-      { threshold: 0.3 }
+      { threshold: 0.1 }
     );
     if (statsRef.current) observer.observe(statsRef.current);
     return () => observer.disconnect();
@@ -186,7 +187,7 @@ export function HomePage({ onEnter }: HomePageProps) {
 
   return (
     <div
-      className="min-h-screen overflow-y-auto text-white"
+      className="min-h-screen text-white"
       style={{ background: "#05070a" }}
     >
       {/* ── Animated grid background ── */}
@@ -356,16 +357,23 @@ export function HomePage({ onEnter }: HomePageProps) {
           </a>
         </div>
 
-        {/* Scroll indicator */}
-        <div className="mt-16 flex flex-col items-center gap-2 text-slate-600 animate-bounce">
+        {/* Scroll indicator — clicks scroll to stats section */}
+        <button
+          onClick={() => statsRef.current?.scrollIntoView({ behavior: "smooth" })}
+          className="mt-16 flex flex-col items-center gap-2 text-slate-600 hover:text-slate-400 transition-colors cursor-pointer"
+        >
           <span className="text-[10px] font-mono tracking-widest">SCROLL TO EXPLORE</span>
-          <div className="w-px h-8 bg-gradient-to-b from-slate-600 to-transparent" />
-        </div>
+          <div className="flex flex-col items-center gap-1 animate-bounce">
+            <div className="w-px h-6 bg-gradient-to-b from-slate-600 to-transparent" />
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400/50" />
+          </div>
+        </button>
       </section>
 
       {/* ── Live stats bar ── */}
       <section
         ref={statsRef}
+        id="stats"
         className="px-6 py-12 border-y"
         style={{ borderColor: "rgba(0,242,255,0.08)", background: "rgba(0,242,255,0.02)" }}
       >
