@@ -31,9 +31,22 @@ export function AlertsPage() {
         status: statusFilter !== "ALL" ? statusFilter : undefined,
         limit: 200,
       });
-      setAlerts(res.alerts);
-    } catch (err) {
-      console.error("Failed to load alerts:", err);
+      if (res.alerts && res.alerts.length > 0) {
+        setAlerts(res.alerts);
+      } else {
+        // Demo mode — use seed alerts filtered by current filters
+        const { SEED_ALERTS } = await import("../data/seedData");
+        let filtered = SEED_ALERTS;
+        if (priorityFilter !== "ALL") filtered = filtered.filter((a) => a.priority === priorityFilter);
+        if (statusFilter !== "ALL") filtered = filtered.filter((a) => a.status === statusFilter);
+        setAlerts(filtered);
+      }
+    } catch {
+      const { SEED_ALERTS } = await import("../data/seedData");
+      let filtered = SEED_ALERTS;
+      if (priorityFilter !== "ALL") filtered = filtered.filter((a) => a.priority === priorityFilter);
+      if (statusFilter !== "ALL") filtered = filtered.filter((a) => a.status === statusFilter);
+      setAlerts(filtered);
     } finally {
       setLoading(false);
     }

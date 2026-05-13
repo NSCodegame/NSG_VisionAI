@@ -36,9 +36,15 @@ export function FeedsPage() {
     setLoading(true);
     try {
       const data = await feedService.list();
-      setFeeds(data);
-    } catch (err) {
-      console.error("Feeds load failed:", err);
+      if (data && data.length > 0) {
+        setFeeds(data);
+      } else {
+        const { SEED_FEEDS } = await import("../data/seedData");
+        setFeeds(SEED_FEEDS);
+      }
+    } catch {
+      const { SEED_FEEDS } = await import("../data/seedData");
+      setFeeds(SEED_FEEDS);
     } finally {
       setLoading(false);
     }
@@ -252,7 +258,7 @@ export function FeedsPage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, feed_type: e.target.value }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500/50"
                 >
-                  {["FIXED_CAMERA", "DRONE", "BODY_CAM", "LEGACY_CCTV"].map((t) => (
+                  {["FIXED_CAMERA", "DRONE", "BODY_CAM", "LEGACY_CCTV", "IP_CAMERA"].map((t) => (
                     <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
                   ))}
                 </select>

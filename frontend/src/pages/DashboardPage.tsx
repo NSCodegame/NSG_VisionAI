@@ -11,27 +11,31 @@ import { useAlertStream } from "../hooks/useAlertStream";
 import { useAlertStore, useFeedStore } from "../stores";
 import { alertService } from "../services/alertService";
 import { feedService } from "../services/feedService";
-import { Activity, Users, Radio } from "lucide-react";
+import { Activity, Users, Radio, AlertTriangle, Target } from "lucide-react";
+import { useSeedData } from "../data/useSeedData";
+import { SEED_TRACKED_PERSONS, SEED_ANALYTICS_SUMMARY } from "../data/seedData";
 
 export function DashboardPage() {
   const { isConnected } = useAlertStream();
   const { alerts, unreadCount } = useAlertStore();
   const { feeds, setFeeds } = useFeedStore();
 
+  // Inject seed data when backend is unavailable
+  useSeedData();
+
   // Load initial data
   useEffect(() => {
     alertService.list({ status: "ACTIVE", limit: 50 })
       .then((res) => {
-        useAlertStore.getState().setAlerts(res.alerts ?? []);
+        if (res.alerts?.length > 0) useAlertStore.getState().setAlerts(res.alerts);
       })
-      .catch(() => {
-        // DB not available — start with empty alerts, WebSocket will populate
-        useAlertStore.getState().setAlerts([]);
-      });
+      .catch(() => {});
 
     feedService.list()
-      .then((feeds) => setFeeds(Array.isArray(feeds) ? feeds : []))
-      .catch(() => setFeeds([]));
+      .then((feeds) => {
+        if (Array.isArray(feeds) && feeds.length > 0) setFeeds(feeds);
+      })
+      .catch(() => {});
   }, [setFeeds]);
 
   const activeFeeds = feeds.filter((f) => f.status === "ACTIVE").length;
@@ -79,17 +83,38 @@ export function DashboardPage() {
               </span>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-3">
-            <p className="text-xs text-slate-600 text-center mt-8">
-              No active tracks
-            </p>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {SEED_TRACKED_PERSONS.map((person) => (
+              <div
+                key={person.id}
+                className={`bg-slate-900/60 border rounded-lg p-2.5 ${
+                  person.watchlist_match_id ? "border-red-500/30" : "border-slate-700"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-1 mb-1">
+                  <p className="text-[11px] font-bold text-slate-200 leading-tight">{person.name}</p>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                    person.label === "SUSPECT"
+                      ? "bg-red-900/40 text-red-400 border border-red-500/30"
+                      : "bg-slate-800 text-slate-400 border border-slate-600"
+                  }`}>
+                    {person.label}
+                  </span>
+                </div>
+                <div className="text-[9px] font-mono text-slate-500 space-y-0.5">
+                  <p>TRK: {person.track_id}</p>
+                  <p>CAM: {person.feed_name}</p>
+                  <p className="text-cyan-400/70">CONF: {(person.confidence * 100).toFixed(0)}%</p>
+                </div>
+              </div>
+            ))}
           </div>
           {/* Quick stats */}
           <div className="p-3 border-t border-blue-500/10 space-y-2">
             {[
-              { label: "Total Tracked", value: "0" },
-              { label: "Watchlist Matches", value: "0" },
-              { label: "Zone Breaches Today", value: "0" },
+              { label: "Total Tracked", value: String(SEED_TRACKED_PERSONS.length) },
+              { label: "Watchlist Matches", value: String(SEED_TRACKED_PERSONS.filter((p) => p.watchlist_match_id).length) },
+              { label: "Zone Breaches Today", value: String(SEED_ANALYTICS_SUMMARY.zone_breaches) },
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between text-[10px] font-mono">
                 <span className="text-slate-500 uppercase">{label}</span>

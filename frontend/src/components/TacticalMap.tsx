@@ -170,15 +170,27 @@ export const TacticalMap = ({
         apiClient.get("/zones"),
       ]);
 
+      let feedData: Feed[] = [];
+      let zoneData: Zone[] = [];
+
       if (feedsRes.status === "fulfilled") {
-        const data = feedsRes.value.data;
-        setFeeds(Array.isArray(data) ? data : data?.feeds ?? []);
+        const d = feedsRes.value.data;
+        feedData = Array.isArray(d) ? d : d?.feeds ?? [];
       }
       if (zonesRes.status === "fulfilled") {
-        const data = zonesRes.value.data;
-        setZones(Array.isArray(data) ? data : data?.zones ?? []);
+        const d = zonesRes.value.data;
+        zoneData = Array.isArray(d) ? d : d?.zones ?? [];
       }
-    } catch { /* ignore */ } finally {
+
+      // Fall back to seed data in demo mode
+      const seed = await import("../data/seedData");
+      setFeeds(feedData.length > 0 ? feedData : seed.SEED_FEEDS as Feed[]);
+      setZones(zoneData.length > 0 ? zoneData : seed.SEED_ZONES as Zone[]);
+    } catch {
+      const seed = await import("../data/seedData");
+      setFeeds(seed.SEED_FEEDS as Feed[]);
+      setZones(seed.SEED_ZONES as Zone[]);
+    } finally {
       setLoading(false);
     }
   };

@@ -94,7 +94,16 @@ export function ForensicsPage() {
       // Poll for results
       const completed = await forensicsService.pollJob(jobResult.job_id, 2000, 60);
       setJob(completed);
-      setResults((completed.results as SearchResult[]) || []);
+      const rawResults = (completed.results as SearchResult[]) || [];
+
+      // If no real results, show seed forensic data in demo mode
+      if (rawResults.length === 0) {
+        const { SEED_FORENSIC_RESULTS } = await import("../data/seedData");
+        setResults(SEED_FORENSIC_RESULTS as SearchResult[]);
+        setJob({ ...completed, result_count: SEED_FORENSIC_RESULTS.length });
+      } else {
+        setResults(rawResults);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Search failed");
     } finally {

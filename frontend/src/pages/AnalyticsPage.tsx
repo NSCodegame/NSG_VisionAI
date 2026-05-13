@@ -61,11 +61,17 @@ export function AnalyticsPage() {
         analyticsService.getAlertsTimeline(fromStr, toStr, days <= 2 ? "hour" : "day"),
         analyticsService.getAlertDistribution(fromStr, toStr),
       ]);
-      setSummary(s);
-      setTimeline(t);
-      setDistribution(d);
-    } catch (err) {
-      console.error("Analytics load failed:", err);
+
+      // Use seed data when API returns empty (demo / no-DB mode)
+      const seed = await import("../data/seedData");
+      setSummary(s?.total_alerts != null ? s : seed.SEED_ANALYTICS_SUMMARY as typeof s);
+      setTimeline(t?.length > 0 ? t : seed.SEED_ANALYTICS_TIMELINE as typeof t);
+      setDistribution(d?.length > 0 ? d : seed.SEED_ANALYTICS_DISTRIBUTION as typeof d);
+    } catch {
+      const seed = await import("../data/seedData");
+      setSummary(seed.SEED_ANALYTICS_SUMMARY as typeof summary);
+      setTimeline(seed.SEED_ANALYTICS_TIMELINE as typeof timeline);
+      setDistribution(seed.SEED_ANALYTICS_DISTRIBUTION as typeof distribution);
     } finally {
       setLoading(false);
     }

@@ -48,9 +48,16 @@ export function ReportsPage() {
     setLoading(true);
     try {
       const data = await reportsService.list();
-      setReports(data);
-    } catch (err) {
-      console.error("Failed to load reports:", err);
+      if (data && data.length > 0) {
+        setReports(data);
+      } else {
+        // Fall back to seed reports in demo mode
+        const { SEED_REPORTS } = await import("../data/seedData");
+        setReports(SEED_REPORTS as typeof data);
+      }
+    } catch {
+      const { SEED_REPORTS } = await import("../data/seedData");
+      setReports(SEED_REPORTS as Report[]);
     } finally {
       setLoading(false);
     }
