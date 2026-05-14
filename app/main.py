@@ -26,6 +26,7 @@ from app.api.v1.routers import (
     admin,
     streams,
     webcam,
+    recording,
 )
 from app.core.config import settings
 
@@ -65,6 +66,7 @@ app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(streams.router, prefix="/api/v1")
 app.include_router(webcam.router, prefix="/api/v1")
+app.include_router(recording.router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["Health"])
@@ -81,12 +83,18 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     """Application startup event"""
-    # Validate configuration
     try:
         settings.validate_on_startup()
         print(f"✓ {settings.app_name} v{settings.app_version} started successfully")
         print(f"✓ Environment: {settings.environment}")
         print(f"✓ Debug mode: {settings.debug}")
+
+        # Start the stream manager
+        from app.services.stream_manager import get_stream_manager
+        manager = get_stream_manager()
+        await manager.start()
+        print("✓ StreamManager started")
+
     except ValueError as e:
         print(f"✗ Configuration validation failed: {e}")
         raise
@@ -95,4 +103,20 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Application shutdown event"""
+    # Stop all active streams gracefully
+    from app.services.stream_manager import get_stream_manager
+    from app.services.recording_service import get_recording_service
+    try:
+        manager = get_stream_manager()
+        await manager.stop()
+        print("✓ StreamManager stopped")
+    except Exception:
+        pass
+    try:
+        rec = get_recording_service()
+        for feed_id in list(rec._recording_procs.keys()):
+            rec.stop_recording(feed_id)
+        print("✓ RecordingService stopped")
+    except Exception:
+        pass
     print(f"✓ {settings.app_name} shutdown complete")

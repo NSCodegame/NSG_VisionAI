@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nsg-worker-detection
+  namespace: nsg-visionai
+  labels:
+    app: worker-detection
+    tier: ml
+spec:
+  replicas: 1                          # 1 per GPU node
+  selector:
+    matchLabels:
+      app: worker-detection
+  template:
+    metadata:
+      labels:
+        app: worker-detection
+    spec:
+      nodeSelector:
+        accelerator: nvidia-gpu        # Schedule only on GPU nodes
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: worker-detection
+          image: nsg-visionai/ml-worker:latest
+          command:
+            - celery
+            - -A
+            - app.core.celery_app
+            - worker
+            - -Q
+            - detection_queue
+            - --concurrency=1
+            - -P
+            - solo
+            - --loglevel=info
+          env:
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "0"
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+              nvidia.com/gpu: "1"
+            limits:
+              memory: "8Gi"
+              cpu: "4"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: models
+              mountPath: /app/models
+              readOnly: true
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: nsg-models-pvc

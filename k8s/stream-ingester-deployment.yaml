@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nsg-stream-ingester
+  namespace: nsg-visionai
+  labels:
+    app: stream-ingester
+    tier: ml
+spec:
+  replicas: 3                          # 3 pods × 50 slots = 150 concurrent feeds
+  selector:
+    matchLabels:
+      app: stream-ingester
+  template:
+    metadata:
+      labels:
+        app: stream-ingester
+    spec:
+      containers:
+        - name: stream-ingester
+          image: nsg-visionai/ml-worker:latest
+          command: ["python", "-m", "app.workers.stream_worker"]
+          env:
+            - name: STREAM_SLOTS_PER_PROCESS
+              value: "50"
+            - name: REDIS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: nsg-secrets
+                  key: redis-host
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+            limits:
+              memory: "8Gi"
+              cpu: "4"
+          volumeMounts:
+            - name: recordings
+              mountPath: /tmp/nsg_recordings
+      volumes:
+        - name: recordings
+          persistentVolumeClaim:
+            claimName: nsg-recordings-pvc
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nsg-stream-ingester-hpa
+  namespace: nsg-visionai
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nsg-stream-ingester
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

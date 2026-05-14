@@ -33,7 +33,15 @@ async def get_redis() -> Redis:
             settings.redis_url,
             encoding="utf-8",
             decode_responses=True,
-            max_connections=50,
+            max_connections=200,      # 100 feeds × 2 connections each
+            socket_keepalive=True,
+            socket_keepalive_options={
+                "TCP_KEEPIDLE": 60,
+                "TCP_KEEPINTVL": 10,
+                "TCP_KEEPCNT": 3,
+            },
+            retry_on_timeout=True,
+            health_check_interval=30,
         )
     return _redis_pool
 
@@ -107,7 +115,7 @@ async def publish_frame(
         for k, v in extra.items():
             fields[k] = json.dumps(v) if isinstance(v, (dict, list)) else str(v)
 
-    entry_id: str = await redis.xadd(key, fields, maxlen=500, approximate=True)
+    entry_id: str = await redis.xadd(key, fields, maxlen=200, approximate=True)
     return entry_id
 
 

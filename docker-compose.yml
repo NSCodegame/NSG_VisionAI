@@ -1,15 +1,24 @@
 version: '3.8'
 
+# NSG VisionAI — Production Docker Compose
+# Supports 100+ concurrent CCTV feeds with GPU acceleration
+#
+# Usage:
+#   Development:  docker-compose up -d
+#   With GPU:     docker-compose -f docker-compose.yml -f docker/gpu.yml up -d
+#   Scale workers: docker-compose up -d --scale worker-detection=2 --scale worker-face=4
+
 services:
-  # PostgreSQL 16 with pgvector and TimescaleDB extensions
+
+  # ── Infrastructure ──────────────────────────────────────────────────────
+
   postgres:
     image: timescale/timescaledb-ha:pg16
-    container_name: nsg-visionai-postgres
+    container_name: nsg-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-nsg_visionai}
       POSTGRES_USER: ${POSTGRES_USER:-nsg_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
-      POSTGRES_INITDB_ARGS: "-c shared_preload_libraries=timescaledb"
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -20,32 +29,43 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - nsg-network
+    networks: [nsg-net]
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
 
-  # Redis 7 (Celery broker and caching)
   redis:
     image: redis:7-alpine
-    container_name: nsg-visionai-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD:-change_me_in_production} --maxmemory 2gb --maxmemory-policy allkeys-lru
+    container_name: nsg-redis
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-change_me_in_production}
+      --maxmemory 4gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --appendonly yes
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-change_me_in_production}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - nsg-network
+    networks: [nsg-net]
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
 
-  # MinIO (S3-compatible object storage)
   minio:
     image: minio/minio:latest
-    container_name: nsg-visionai-minio
+    container_name: nsg-minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-nsg_admin}
@@ -60,35 +80,208 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
-    networks:
-      - nsg-network
+    networks: [nsg-net]
     restart: unless-stopped
 
-  # Flower (Celery monitoring dashboard)
+  # ── API Server ──────────────────────────────────────────────────────────
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nsg-api
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+      --worker-class uvicorn.workers.UvicornWorker
+      --loop asyncio
+      --timeout-keep-alive 30
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./streams:/tmp/nsg_hls
+      - ./recordings:/tmp/nsg_recordings
+      - ./clips:/tmp/nsg_clips
+      - ./keys:/app/keys:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    networks: [nsg-net]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+
+  # ── Stream Ingester (handles RTSP connections) ──────────────────────────
+  # Scale this to handle more concurrent feeds:
+  # docker-compose up -d --scale stream-ingester=3
+
+  stream-ingester:
+    build:
+      context: .
+      dockerfile: Dockerfile.ml
+    container_name: nsg-stream-ingester
+    command: python -m app.workers.stream_worker
+    env_file: .env
+    environment:
+      STREAM_SLOTS_PER_PROCESS: "50"
+    volumes:
+      - ./recordings:/tmp/nsg_recordings
+    depends_on:
+      redis: { condition: service_healthy }
+    networks: [nsg-net]
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 8G
+          cpus: "4"
+
+  # ── GPU Detection Worker ────────────────────────────────────────────────
+  # One per GPU. Uses batch inference for maximum throughput.
+
+  worker-detection:
+    build:
+      context: .
+      dockerfile: Dockerfile.ml
+    command: >
+      celery -A app.core.celery_app worker
+      -Q detection_queue
+      --concurrency=1
+      -P solo
+      --loglevel=info
+      -n detection@%h
+    env_file: .env
+    volumes:
+      - ./models:/app/models:ro
+    depends_on:
+      redis: { condition: service_healthy }
+    networks: [nsg-net]
+    restart: unless-stopped
+    # Uncomment for GPU:
+    # runtime: nvidia
+    # environment:
+    #   NVIDIA_VISIBLE_DEVICES: "0"
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 6G
+          cpus: "4"
+
+  # ── Face Recognition Workers ────────────────────────────────────────────
+
+  worker-face:
+    build:
+      context: .
+      dockerfile: Dockerfile.ml
+    command: >
+      celery -A app.core.celery_app worker
+      -Q face_queue
+      --concurrency=2
+      --loglevel=info
+      -n face@%h
+    env_file: .env
+    volumes:
+      - ./models:/app/models:ro
+    depends_on:
+      redis: { condition: service_healthy }
+    networks: [nsg-net]
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2"
+
+  # ── Alert + Archival Workers ────────────────────────────────────────────
+
+  worker-alert:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      celery -A app.core.celery_app worker
+      -Q alert_queue,archival_queue,recording_queue
+      --concurrency=4
+      --loglevel=info
+      -n alert@%h
+    env_file: .env
+    volumes:
+      - ./recordings:/tmp/nsg_recordings
+      - ./clips:/tmp/nsg_clips
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    networks: [nsg-net]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # ── Celery Beat (Scheduler) ─────────────────────────────────────────────
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      celery -A app.core.celery_app beat
+      --loglevel=info
+      --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    env_file: .env
+    depends_on:
+      redis: { condition: service_healthy }
+    networks: [nsg-net]
+    restart: unless-stopped
+
+  # ── Monitoring ──────────────────────────────────────────────────────────
+
   flower:
     image: mher/flower:latest
-    container_name: nsg-visionai-flower
-    command: celery --broker=redis://:${REDIS_PASSWORD:-change_me_in_production}@redis:6379/0 flower --port=5555
+    container_name: nsg-flower
+    command: >
+      celery
+      --broker=redis://:${REDIS_PASSWORD:-change_me_in_production}@redis:6379/0
+      flower
+      --port=5555
+      --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-change_me_in_production}
     ports:
       - "${FLOWER_PORT:-5555}:5555"
-    environment:
-      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-change_me_in_production}@redis:6379/0
-      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-change_me_in_production}@redis:6379/0
-      FLOWER_BASIC_AUTH: ${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-change_me_in_production}
-    depends_on:
-      - redis
-    networks:
-      - nsg-network
+    depends_on: [redis]
+    networks: [nsg-net]
+    restart: unless-stopped
+
+  # ── Frontend ────────────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nsg-frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on: [api]
+    networks: [nsg-net]
     restart: unless-stopped
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
   minio_data:
-    driver: local
 
 networks:
-  nsg-network:
+  nsg-net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
