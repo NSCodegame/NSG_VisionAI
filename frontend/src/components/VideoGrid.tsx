@@ -1,29 +1,45 @@
-import { VideoPlayer } from './VideoPlayer';
+/**
+ * VideoGrid — Real feed grid using live MJPEG streams
+ *
+ * Reads feeds from the Zustand store (populated by DashboardPage).
+ * Each card connects to /api/v1/streams/{feedId}/mjpeg for live video.
+ */
 
-interface Feed {
-  id: string;
-  name: string;
-  status: 'active' | 'offline' | 'alert';
-}
-
-const MOCK_FEEDS: Feed[] = [
-  { id: 'cam-01', name: 'MAIN GATE - ENTRANCE', status: 'active' },
-  { id: 'cam-02', name: 'PERIMETER NORTH - ZONE 3', status: 'alert' },
-  { id: 'cam-03', name: 'PARKING AREA B', status: 'active' },
-  { id: 'cam-04', name: 'SERVER ROOM - INTERNAL', status: 'offline' },
-  { id: 'cam-05', name: 'CORRIDOR 4 - LEVEL 2', status: 'active' },
-  { id: 'cam-06', name: 'LOBBY - RECEPTION', status: 'alert' },
-];
+import { VideoPlayer } from "./VideoPlayer";
+import { useFeedStore } from "../stores";
+import { Monitor } from "lucide-react";
 
 export const VideoGrid = () => {
+  const { feeds } = useFeedStore();
+
+  if (feeds.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-700">
+        <Monitor size={40} />
+        <p className="text-xs font-mono tracking-widest uppercase">No feeds configured</p>
+        <p className="text-[10px] text-slate-600">Add feeds via the FEEDS tab</p>
+      </div>
+    );
+  }
+
+  // Grid layout based on feed count
+  const gridCols =
+    feeds.length === 1 ? "grid-cols-1" :
+    feeds.length <= 4 ? "grid-cols-2" :
+    "grid-cols-3";
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 h-full p-1 overflow-y-auto">
-      {MOCK_FEEDS.map((feed) => (
-        <div key={feed.id} className="aspect-video">
-          <VideoPlayer 
+    <div className={`grid ${gridCols} gap-3 h-full overflow-y-auto`}>
+      {feeds.map((feed) => (
+        <div key={feed.id} className="aspect-video min-h-[140px]">
+          <VideoPlayer
             feedId={feed.id}
             feedName={feed.name}
             status={feed.status}
+            aiEnabled={feed.ai_processing_enabled ?? false}
+            location={feed.location_name}
+            resolution={feed.resolution}
+            fps={feed.fps}
           />
         </div>
       ))}

@@ -159,9 +159,18 @@ export function FeedsPage() {
                     feed.status === "ACTIVE" ? "border-slate-700" : `border-${cfg.color.split("-")[1]}-500/20`
                   }`}
                 >
-                  {/* Thumbnail area */}
-                  <div className="h-32 bg-slate-800 flex items-center justify-center relative">
-                    <Monitor size={32} className="text-slate-700" />
+                  {/* Thumbnail area — live MJPEG snapshot */}
+                  <div className="h-36 bg-slate-900 flex items-center justify-center relative overflow-hidden">
+                    {feed.status === "ACTIVE" ? (
+                      <img
+                        src={`${import.meta.env.VITE_API_URL ?? "/api/v1"}/streams/${feed.id}/snapshot?token=${localStorage.getItem("access_token") ?? ""}&_t=${Date.now()}`}
+                        alt={feed.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    ) : (
+                      <Monitor size={28} className="text-slate-700" />
+                    )}
                     <div className={`absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-bold ${cfg.color}`}>
                       <StatusIcon size={9} />
                       {cfg.label}
@@ -171,6 +180,11 @@ export function FeedsPage() {
                         AI ACTIVE
                       </div>
                     )}
+                    {/* Tactical corner brackets */}
+                    <div className="absolute top-1 left-1 w-3 h-3 border-t border-l border-cyan-500/30" />
+                    <div className="absolute top-1 right-1 w-3 h-3 border-t border-r border-cyan-500/30" />
+                    <div className="absolute bottom-1 left-1 w-3 h-3 border-b border-l border-cyan-500/30" />
+                    <div className="absolute bottom-1 right-1 w-3 h-3 border-b border-r border-cyan-500/30" />
                   </div>
 
                   {/* Metadata */}

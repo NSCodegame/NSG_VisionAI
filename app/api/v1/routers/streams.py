@@ -4,14 +4,19 @@ HLS Stream Proxy & WebRTC Signaling — Phase 22
 Provides:
   GET /streams/{feed_id}/live.m3u8  — HLS manifest
   GET /streams/{feed_id}/seg{n}.ts  — HLS segment
+  GET /streams/{feed_id}/mjpeg      — MJPEG live stream (browser-compatible)
+  GET /streams/{feed_id}/snapshot   — Latest JPEG snapshot
+  POST /streams/{feed_id}/start     — Start stream ingestion
+  DELETE /streams/{feed_id}/stop    — Stop stream ingestion
   POST /streams/{feed_id}/webrtc/offer — WebRTC signaling (drone feeds)
 """
 
+import asyncio
 import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
-from fastapi.responses import PlainTextResponse, Response
+from fastapi.responses import PlainTextResponse, Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.dependencies.auth import require_operator
@@ -21,6 +26,7 @@ from app.repositories.video_feed import VideoFeedRepository
 from app.services.hls_service import get_hls_service
 from app.utils.encryption import decrypt_rtsp_url
 from app.core.config import settings
+from app.ml.ingestion.stream_ingester import ingester
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +181,170 @@ async def stop_hls_stream(
     hls = get_hls_service()
     hls.stop_stream(str(feed_id))
     return None
+
+
+# ---------------------------------------------------------------------------
+# MJPEG Live Stream — per-feed (browser-compatible, no FFmpeg needed)
+# ---------------------------------------------------------------------------
+
+
+async def _get_feed_rtsp(feed_id: UUID, session: AsyncSession) -> str:
+    """Helper: fetch and decrypt RTSP URL for a feed."""
+    feed_repo = VideoFeedRepository(session)
+    feed = await feed_repo.get(feed_id)
+    if feed is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Feed {feed_id} not found")
+    try:
+        return decrypt_rtsp_url(feed.rtsp_url_encrypted, settings.encryption_master_key)
+    except Exception as exc:
+        logger.error("Failed to decrypt RTSP URL for feed %s: %s", feed_id, exc)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve stream URL")
+
+
+@router.post(
+    "/{feed_id}/start",
+    status_code=status.HTTP_200_OK,
+    summary="Start stream ingestion",
+    description="Start RTSP ingestion for a feed (OPERATOR+)",
+)
+async def start_stream(
+    request: Request,
+    feed_id: UUID,
+    current_user: User = Depends(require_operator),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Start RTSP stream ingestion for a feed.
+    Decrypts the RTSP URL and begins OpenCV capture + Redis frame publishing.
+    """
+    rtsp_url = await _get_feed_rtsp(feed_id, session)
+    await ingester.connect_stream(str(feed_id), rtsp_url)
+    return {"status": "started", "feed_id": str(feed_id)}
+
+
+@router.delete(
+    "/{feed_id}/ingest-stop",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Stop stream ingestion",
+    description="Stop RTSP ingestion for a feed (OPERATOR+)",
+)
+async def stop_stream_ingest(
+    request: Request,
+    feed_id: UUID,
+    current_user: User = Depends(require_operator),
+    session: AsyncSession = Depends(get_session),
+):
+    """Stop RTSP stream ingestion for a feed."""
+    await ingester.disconnect_stream(str(feed_id))
+    return None
+
+
+@router.get(
+    "/{feed_id}/snapshot",
+    summary="Latest JPEG snapshot",
+    description="Get the latest JPEG frame from a live feed (OPERATOR+). Accepts token query param.",
+)
+async def get_feed_snapshot(
+    feed_id: UUID,
+    token: str | None = None,
+    current_user: User = Depends(require_operator),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Return the latest JPEG frame from the ingester for a feed.
+    If the ingester is not running for this feed, starts it automatically.
+    """
+    feed_id_str = str(feed_id)
+
+    # Auto-start ingestion if not running
+    if feed_id_str not in await ingester.list_active_feeds():
+        rtsp_url = await _get_feed_rtsp(feed_id, session)
+        await ingester.connect_stream(feed_id_str, rtsp_url)
+        # Give it a moment to connect
+        await asyncio.sleep(1.5)
+
+    jpeg = await ingester.get_last_frame(feed_id_str)
+    if jpeg is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No frame available yet. Stream may still be connecting.",
+        )
+    return Response(
+        content=jpeg,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-cache, no-store"},
+    )
+
+
+@router.get(
+    "/{feed_id}/mjpeg",
+    summary="MJPEG live stream",
+    description="Live MJPEG stream from a feed. Accepts token query param for <img> tag use. (OPERATOR+)",
+)
+async def stream_feed_mjpeg(
+    feed_id: UUID,
+    token: str | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Stream live MJPEG frames from a feed's RTSP source.
+
+    Uses the VideoStreamIngester (OpenCV) to read frames and push them
+    as multipart/x-mixed-replace — the same format as the webcam stream.
+
+    Accepts JWT token as query param so browser <img> tags can load it.
+    Auto-starts ingestion if not already running.
+    """
+    # Validate token from query param (browser <img> tags can't send headers)
+    if token:
+        try:
+            from app.core.security import decode_token, verify_token_type
+            payload = decode_token(token)
+            if not verify_token_type(payload, "access"):
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+        except Exception:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    feed_id_str = str(feed_id)
+
+    # Auto-start ingestion if not running
+    if feed_id_str not in await ingester.list_active_feeds():
+        try:
+            rtsp_url = await _get_feed_rtsp(feed_id, session)
+            await ingester.connect_stream(feed_id_str, rtsp_url)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.error("Failed to start ingestion for feed %s: %s", feed_id, exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Failed to start stream ingestion",
+            )
+
+    async def frame_generator():
+        last_frame: bytes | None = None
+        no_frame_count = 0
+        while True:
+            frame = await ingester.get_last_frame(feed_id_str)
+            if frame and frame is not last_frame:
+                last_frame = frame
+                no_frame_count = 0
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                )
+            else:
+                no_frame_count += 1
+                # If no frames for 10 seconds, stop streaming
+                if no_frame_count > 500:
+                    break
+            await asyncio.sleep(0.04)  # ~25fps push rate
+
+    return StreamingResponse(
+        frame_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={"Cache-Control": "no-cache, no-store"},
+    )
 
 
 # ---------------------------------------------------------------------------

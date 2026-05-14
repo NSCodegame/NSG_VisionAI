@@ -1,117 +1,285 @@
-import { useState, useEffect, useRef } from 'react';
-import { Maximize, Minimize, Settings, Play, Pause, AlertTriangle } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+/**
+ * VideoPlayer — Real MJPEG stream player
+ *
+ * Connects to /api/v1/streams/{feedId}/mjpeg for live RTSP feeds.
+ * Falls back to a tactical placeholder when stream is unavailable.
+ * Shows connection state, FPS, AI status, and stream health.
+ */
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Maximize2, Minimize2, Pause, Play, AlertTriangle,
+  Wifi, WifiOff, Activity, Cpu, RefreshCw,
+} from "lucide-react";
 
 interface VideoPlayerProps {
   feedId: string;
   feedName: string;
-  status: 'active' | 'offline' | 'alert';
-  isMuted?: boolean;
+  /** "ACTIVE" | "OFFLINE" | "DEGRADED" | "MAINTENANCE" | legacy "active" | "offline" | "alert" */
+  status: string;
+  aiEnabled?: boolean;
+  location?: string;
+  resolution?: string;
+  fps?: number;
+  /** If true, use the webcam MJPEG endpoint instead of the feed endpoint */
+  isWebcam?: boolean;
 }
 
-export const VideoPlayer = ({ feedId, feedName, status, isMuted = true }: VideoPlayerProps) => {
+const BASE = import.meta.env.VITE_API_URL ?? "/api/v1";
+
+function getStreamUrl(feedId: string, isWebcam: boolean): string {
+  const token = localStorage.getItem("access_token") ?? "";
+  if (isWebcam) return `${BASE}/webcam/stream?token=${token}`;
+  return `${BASE}/streams/${feedId}/mjpeg?token=${token}`;
+}
+
+function isActive(status: string) {
+  return status === "ACTIVE" || status === "active";
+}
+function isOffline(status: string) {
+  return status === "OFFLINE" || status === "offline";
+}
+function isAlert(status: string) {
+  return status === "alert";
+}
+function isDegraded(status: string) {
+  return status === "DEGRADED" || status === "degraded";
+}
+
+export const VideoPlayer = ({
+  feedId,
+  feedName,
+  status,
+  aiEnabled = false,
+  location,
+  resolution,
+  fps,
+  isWebcam = false,
+}: VideoPlayerProps) => {
+  const [streamState, setStreamState] = useState<"loading" | "live" | "error" | "paused">("loading");
   const [isHovered, setIsHovered] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Simulated AI Overlay Logic
+  const streamUrl = getStreamUrl(feedId, isWebcam);
+
+  const startStream = useCallback(() => {
+    if (!imgRef.current || isOffline(status) || paused) return;
+    setStreamState("loading");
+    // Setting src triggers the browser to open the MJPEG connection
+    imgRef.current.src = streamUrl + `&_t=${Date.now()}`;
+  }, [streamUrl, status, paused]);
+
   useEffect(() => {
-    if (!isPlaying || !canvasRef.current) return;
-    
-    const ctx = canvasRef.current.getContext('2d');
-    if (!ctx) return;
-
-    let frameId: number;
-    const draw = () => {
-      ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-      
-      // Simulate Bounding Box for Person Detection
-      if (Math.random() > 0.3) {
-        ctx.strokeStyle = '#00f2ff'; // Tactical Cyan
-        ctx.lineWidth = 2;
-        ctx.strokeRect(50, 60, 80, 120);
-        
-        ctx.fillStyle = '#00f2ff';
-        ctx.font = '10px monospace';
-        ctx.fillText('TARGET: PERSON (98%)', 50, 55);
-      }
-
-      frameId = requestAnimationFrame(draw);
+    if (!isOffline(status) && !paused) {
+      startStream();
+    }
+    return () => {
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+      // Stop stream by clearing src
+      if (imgRef.current) imgRef.current.src = "";
     };
+  }, [feedId, status, paused]);
 
-    draw();
-    return () => cancelAnimationFrame(frameId);
-  }, [isPlaying]);
+  const handleLoad = () => setStreamState("live");
+
+  const handleError = () => {
+    setStreamState("error");
+    // Auto-retry with exponential backoff (max 30s)
+    const delay = Math.min(2000 * Math.pow(1.5, retryCount), 30000);
+    retryTimer.current = setTimeout(() => {
+      setRetryCount((c) => c + 1);
+      startStream();
+    }, delay);
+  };
+
+  const togglePause = () => {
+    setPaused((p) => {
+      if (!p) {
+        // Pausing — clear src to stop MJPEG connection
+        if (imgRef.current) imgRef.current.src = "";
+        setStreamState("paused");
+      } else {
+        // Resuming
+        setRetryCount(0);
+      }
+      return !p;
+    });
+  };
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  // Status colour
+  const statusColor =
+    isActive(status) && streamState === "live" ? "#10b981" :
+    isAlert(status) ? "#ef4444" :
+    isDegraded(status) ? "#f59e0b" :
+    "#475569";
+
+  const statusLabel =
+    streamState === "loading" ? "CONNECTING" :
+    streamState === "live"    ? (isAlert(status) ? "ALERT" : "LIVE") :
+    streamState === "paused"  ? "PAUSED" :
+    streamState === "error"   ? "RECONNECTING" :
+    isOffline(status)         ? "OFFLINE" : "UNKNOWN";
 
   return (
-    <div 
-      className={cn(
-        "relative rounded-lg overflow-hidden glass-panel group h-full",
-        status === 'alert' ? "border-red-500/50 shadow-[0_0_20px_rgba(244,63,94,0.2)]" : "border-blue-500/10"
-      )}
+    <div
+      ref={containerRef}
+      className="relative rounded-lg overflow-hidden group h-full"
+      style={{
+        background: "#05070a",
+        border: `1px solid ${isAlert(status) ? "rgba(239,68,68,0.4)" : "rgba(59,130,246,0.12)"}`,
+        boxShadow: isAlert(status) ? "0 0 20px rgba(239,68,68,0.15)" : "none",
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Video Content Placeholder */}
-      <div className="absolute inset-0 bg-slate-950 flex items-center justify-center">
-        {status === 'offline' ? (
-          <div className="text-center text-slate-600">
-             <AlertTriangle className="w-12 h-12 mx-auto mb-2 opacity-20" />
-             <p className="text-xs font-mono">FEED DISCONNECTED</p>
-          </div>
-        ) : (
-          <div className="w-full h-full bg-[url('https://images.unsplash.com/photo-1541888941297-dc59633c82ee?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-40 mix-blend-screen" />
-        )}
-      </div>
+      {/* ── STREAM IMAGE (MJPEG) ── */}
+      {!isOffline(status) && !paused ? (
+        <img
+          ref={imgRef}
+          alt={feedName}
+          onLoad={handleLoad}
+          onError={handleError}
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            objectFit: "cover",
+            opacity: streamState === "live" ? 1 : 0,
+            transition: "opacity 0.3s ease",
+          }}
+        />
+      ) : null}
 
-      {/* AI Overlays (Canvas Layer) */}
-      <canvas 
-        ref={canvasRef}
-        width={400} 
-        height={300}
-        className="absolute inset-0 w-full h-full pointer-events-none"
-      />
+      {/* ── PLACEHOLDER (offline / loading / error) ── */}
+      {(isOffline(status) || streamState !== "live") && (
+        <div style={{
+          position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", gap: 8,
+          background: "linear-gradient(135deg,#05070a,#0a1020)",
+        }}>
+          {/* Tactical grid overlay */}
+          <div style={{
+            position: "absolute", inset: 0, opacity: 0.15,
+            backgroundImage: "linear-gradient(rgba(0,242,255,0.3) 1px,transparent 1px),linear-gradient(90deg,rgba(0,242,255,0.3) 1px,transparent 1px)",
+            backgroundSize: "20px 20px",
+          }} />
 
-      {/* UI Overlays */}
-      <div className="absolute top-0 left-0 p-3 w-full flex justify-between items-start bg-gradient-to-b from-black/60 to-transparent">
+          {isOffline(status) ? (
+            <>
+              <WifiOff size={28} color="#475569" />
+              <span style={{ fontSize: 10, fontFamily: "monospace", color: "#475569", letterSpacing: "0.15em" }}>FEED DISCONNECTED</span>
+            </>
+          ) : streamState === "loading" ? (
+            <>
+              <RefreshCw size={22} color="#00f2ff" style={{ animation: "spin 1s linear infinite" }} />
+              <span style={{ fontSize: 10, fontFamily: "monospace", color: "#00f2ff", letterSpacing: "0.12em" }}>CONNECTING...</span>
+            </>
+          ) : streamState === "error" ? (
+            <>
+              <AlertTriangle size={24} color="#f59e0b" />
+              <span style={{ fontSize: 10, fontFamily: "monospace", color: "#f59e0b", letterSpacing: "0.12em" }}>RECONNECTING ({retryCount})</span>
+            </>
+          ) : streamState === "paused" ? (
+            <>
+              <Pause size={24} color="#64748b" />
+              <span style={{ fontSize: 10, fontFamily: "monospace", color: "#64748b", letterSpacing: "0.12em" }}>STREAM PAUSED</span>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* ── TOP HUD ── */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, padding: "8px 10px",
+        display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+        background: "linear-gradient(to bottom,rgba(0,0,0,0.7),transparent)",
+        zIndex: 10,
+      }}>
         <div>
-          <h4 className="text-[10px] font-bold text-slate-100 tracking-widest uppercase">{feedName}</h4>
-          <p className="text-[8px] text-slate-400 font-mono tracking-tighter uppercase">CAM: {feedId.slice(0,8)}</p>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#e2e8f0", letterSpacing: "0.1em", textTransform: "uppercase" }}>{feedName}</div>
+          {location && <div style={{ fontSize: 8, color: "#64748b", fontFamily: "monospace", marginTop: 1 }}>{location}</div>}
         </div>
-        <div className={cn(
-          "w-2 h-2 rounded-full",
-          status === 'active' ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : 
-          status === 'alert' ? "bg-red-500 alert-pulse" : "bg-slate-600"
-        )} />
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          {/* AI badge */}
+          {aiEnabled && (
+            <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 6px", borderRadius: 4, background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)" }}>
+              <Cpu size={8} color="#10b981" />
+              <span style={{ fontSize: 8, color: "#10b981", fontFamily: "monospace", fontWeight: 700 }}>AI</span>
+            </div>
+          )}
+          {/* Status dot */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 6px", borderRadius: 4, background: "rgba(0,0,0,0.5)", border: `1px solid ${statusColor}40` }}>
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: statusColor,
+              boxShadow: streamState === "live" ? `0 0 6px ${statusColor}` : "none",
+              animation: streamState === "live" && isActive(status) ? "hp-blink 2s ease-in-out infinite" : "none",
+            }} />
+            <span style={{ fontSize: 8, color: statusColor, fontFamily: "monospace", fontWeight: 700 }}>{statusLabel}</span>
+          </div>
+        </div>
       </div>
 
-      {/* Hover Controls */}
-      <div className={cn(
-        "absolute bottom-0 left-0 w-full p-2 flex justify-between items-center bg-gradient-to-t from-black/80 to-transparent transition-opacity duration-200",
-        isHovered ? "opacity-100" : "opacity-0"
-      )}>
-        <div className="flex gap-2">
-          <button onClick={() => setIsPlaying(!isPlaying)} className="p-1 hover:text-cyan-400 transition-colors">
-            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+      {/* ── BOTTOM HUD ── */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0, padding: "6px 10px",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        background: "linear-gradient(to top,rgba(0,0,0,0.75),transparent)",
+        zIndex: 10,
+        opacity: isHovered ? 1 : 0.4,
+        transition: "opacity 0.2s ease",
+      }}>
+        {/* Stream info */}
+        <div style={{ display: "flex", gap: 8, fontSize: 8, fontFamily: "monospace", color: "#64748b" }}>
+          {resolution && <span>{resolution}</span>}
+          {fps && <span>{fps}fps</span>}
+          {streamState === "live" && <span style={{ color: "#10b981" }}>●LIVE</span>}
+        </div>
+
+        {/* Controls */}
+        <div style={{ display: "flex", gap: 4, opacity: isHovered ? 1 : 0, transition: "opacity 0.2s" }}>
+          <button onClick={togglePause} style={{ padding: 4, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, cursor: "pointer", color: "#94a3b8", transition: "color 0.15s" }}
+            onMouseEnter={e => e.currentTarget.style.color = "#00f2ff"}
+            onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}>
+            {paused ? <Play size={11} /> : <Pause size={11} />}
           </button>
-          <button className="p-1 hover:text-cyan-400 transition-colors"><Settings size={14} /></button>
-        </div>
-        <div className="flex gap-2">
-          <button className="p-1 hover:text-cyan-400 transition-colors"><Maximize size={14} /></button>
+          <button onClick={toggleFullscreen} style={{ padding: 4, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, cursor: "pointer", color: "#94a3b8", transition: "color 0.15s" }}
+            onMouseEnter={e => e.currentTarget.style.color = "#00f2ff"}
+            onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}>
+            {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
+          </button>
         </div>
       </div>
 
-      {/* Sensor Data Overlay (Tactical look) */}
-      <div className="absolute top-1/2 left-3 -translate-y-1/2 flex flex-col gap-1 pointer-events-none">
-        <div className="h-12 w-[1px] bg-cyan-500/20" />
-        <div className="text-[8px] text-cyan-400/40 font-mono rotate-90 origin-left ml-2 whitespace-nowrap">LAT: 28.5355 N</div>
-        <div className="h-12 w-[1px] bg-cyan-500/20" />
-      </div>
+      {/* ── ALERT BORDER FLASH ── */}
+      {isAlert(status) && (
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: "inherit",
+          border: "2px solid rgba(239,68,68,0.6)",
+          animation: "hp-glow-pulse 1.5s ease-in-out infinite",
+          pointerEvents: "none", zIndex: 5,
+        }} />
+      )}
+
+      {/* ── TACTICAL CORNER BRACKETS ── */}
+      {[
+        { top: 4, left: 4, borderTop: "1px solid rgba(0,242,255,0.3)", borderLeft: "1px solid rgba(0,242,255,0.3)" },
+        { top: 4, right: 4, borderTop: "1px solid rgba(0,242,255,0.3)", borderRight: "1px solid rgba(0,242,255,0.3)" },
+        { bottom: 4, left: 4, borderBottom: "1px solid rgba(0,242,255,0.3)", borderLeft: "1px solid rgba(0,242,255,0.3)" },
+        { bottom: 4, right: 4, borderBottom: "1px solid rgba(0,242,255,0.3)", borderRight: "1px solid rgba(0,242,255,0.3)" },
+      ].map((s, i) => (
+        <div key={i} style={{ position: "absolute", width: 10, height: 10, pointerEvents: "none", zIndex: 6, ...s }} />
+      ))}
     </div>
   );
 };
