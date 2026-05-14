@@ -132,12 +132,12 @@ function NDivider() {
 
 /* ── DATA ────────────────────────────────────────────────────────────────── */
 const METRICS = [
-  { Icon: Camera,        label: "Active Cameras",      value: 500,   suffix: "+",   color: "#00f2ff", delay: 0   },
-  { Icon: Brain,         label: "AI Detections Today", value: 50000, suffix: "+",   color: "#a855f7", delay: 80  },
-  { Icon: AlertTriangle, label: "Active Alerts",       value: 47,    suffix: "",    color: "#ef4444", delay: 160 },
-  { Icon: Activity,      label: "System Uptime",       value: 99,    suffix: ".9%", color: "#22c55e", delay: 240 },
-  { Icon: Fingerprint,   label: "Biometric Scans",     value: 12400, suffix: "+",   color: "#f97316", delay: 320 },
-  { Icon: Globe,         label: "Zones Monitored",     value: 120,   suffix: "+",   color: "#3b82f6", delay: 400 },
+  { Icon: Camera,        label: "Active Camera Feeds",    value: 5,    suffix: "",     color: "#00f2ff", delay: 0   },
+  { Icon: AlertTriangle, label: "Alerts This Week",       value: 47,   suffix: "",     color: "#ef4444", delay: 80  },
+  { Icon: Users,         label: "Watchlist Matches",      value: 5,    suffix: "",     color: "#a855f7", delay: 160 },
+  { Icon: Activity,      label: "AI Detection Accuracy",  value: 91,   suffix: ".4%",  color: "#22c55e", delay: 240 },
+  { Icon: Crosshair,     label: "Persons Tracked",        value: 23,   suffix: "",     color: "#f97316", delay: 320 },
+  { Icon: Globe,         label: "Security Zones — NCR",   value: 5,    suffix: "",     color: "#3b82f6", delay: 400 },
 ];
 
 const MODULES = [
