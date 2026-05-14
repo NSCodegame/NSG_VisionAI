@@ -11,7 +11,7 @@ import { useAlertStream } from "../hooks/useAlertStream";
 import { useAlertStore, useFeedStore } from "../stores";
 import { alertService } from "../services/alertService";
 import { feedService } from "../services/feedService";
-import { Activity, Users, Radio, AlertTriangle, Target } from "lucide-react";
+import { Activity, Users, Radio } from "lucide-react";
 import { useSeedData } from "../data/useSeedData";
 import { SEED_TRACKED_PERSONS, SEED_ANALYTICS_SUMMARY } from "../data/seedData";
 
@@ -33,7 +33,7 @@ export function DashboardPage() {
 
     feedService.list()
       .then((feeds) => {
-        if (Array.isArray(feeds) && feeds.length > 0) setFeeds(feeds);
+        if (Array.isArray(feeds) && feeds.length > 0) setFeeds(feeds as any);
       })
       .catch(() => {});
   }, [setFeeds]);

@@ -5,9 +5,10 @@
 import { useState, useEffect, useRef } from "react";
 import {
   Shield, Eye, Brain, Map, Bell, Search, FileText, BarChart2,
-  Camera, Cpu, Lock, ChevronRight, Activity, Zap, Globe, Users,
-  AlertTriangle, Radio, Crosshair, Server, Wifi, Target, Clock,
-  TrendingUp, Database, Network, Layers, Monitor, Fingerprint,
+  Camera, Cpu, Lock, ChevronRight, Activity,
+  Globe, Users,
+  AlertTriangle, Crosshair, Server, Wifi, Target,
+  TrendingUp, Database, Network, Layers, Monitor,
   ChevronDown,
 } from "lucide-react";
 
@@ -392,7 +393,7 @@ export function HomePage({ onEnter }: HomePageProps) {
                 { x: "17%", y: "66%", color: "#ef4444", label: "IGI-T3",       delay: 800 },
                 { x: "73%", y: "56%", color: "#f59e0b", label: "NOIDA-S18",    delay: 1200 },
                 { x: "61%", y: "31%", color: "#00f2ff", label: "GGN-CC-01",    delay: 1600 },
-              ].map((cam, i) => (
+              ].map((cam) => (
                 <div key={cam.label} style={{ position: "absolute", left: cam.x, top: cam.y, zIndex: 5 }}>
                   <div style={{ position: "absolute", inset: -10, borderRadius: "50%", border: `1px solid ${cam.color}`, animation: `hp-pulse-ring 2.5s ease-out infinite`, animationDelay: `${cam.delay}ms` }} />
                   <div style={{ width: 10, height: 10, borderRadius: "50%", background: cam.color, boxShadow: `0 0 12px ${cam.color}`, position: "relative", zIndex: 2 }} />
